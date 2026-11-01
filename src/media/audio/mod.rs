@@ -724,21 +724,15 @@ fn open_output(
     shared: Arc<Shared>,
     failed: Arc<OutputFailure>,
 ) -> Result<cpal::Stream> {
-    let config = device
+    let supported = device
         .default_output_config()
         .context("读取音频输出格式失败")?;
-    let format = config.sample_format();
-    #[allow(unused_mut)]
-    let mut stream_config = config.config();
-    #[cfg(target_os = "linux")]
-    if device
-        .id()
-        .is_ok_and(|id| id.host() == cpal::HostId::PulseAudio)
-    {
-        stream_config.buffer_size =
-            output_buffer::playback_buffer(config.sample_rate(), *config.buffer_size());
-    }
-    let config = stream_config;
+    let format = supported.sample_format();
+    let config = cpal::StreamConfig {
+        #[cfg(target_os = "linux")]
+        buffer_size: output_buffer::playback_buffer(device, &supported),
+        ..supported.config()
+    };
     tracing::info!(?format, rate = config.sample_rate, channels = config.channels,
         buffer = ?config.buffer_size, "audio output format selected");
     match format {
