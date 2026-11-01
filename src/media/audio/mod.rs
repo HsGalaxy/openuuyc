@@ -2,6 +2,8 @@
 pub(crate) mod dsp;
 pub(crate) mod encoder;
 pub(crate) mod neteq;
+#[cfg(target_os = "linux")]
+mod output_buffer;
 pub(crate) mod sender;
 pub(crate) mod waveform;
 
@@ -726,7 +728,17 @@ fn open_output(
         .default_output_config()
         .context("读取音频输出格式失败")?;
     let format = config.sample_format();
-    let config = config.config();
+    #[allow(unused_mut)]
+    let mut stream_config = config.config();
+    #[cfg(target_os = "linux")]
+    if device
+        .id()
+        .is_ok_and(|id| id.host() == cpal::HostId::PulseAudio)
+    {
+        stream_config.buffer_size =
+            output_buffer::playback_buffer(config.sample_rate(), *config.buffer_size());
+    }
+    let config = stream_config;
     tracing::info!(?format, rate = config.sample_rate, channels = config.channels,
         buffer = ?config.buffer_size, "audio output format selected");
     match format {
